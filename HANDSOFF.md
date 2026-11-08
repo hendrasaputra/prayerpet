@@ -3,7 +3,7 @@
 Snapshot for whoever picks this up next (human or Claude Code). Update it after every session.
 
 ## Where things stand
-- **Deployed version on the Pi: 1.7. Built, not deployed: 1.8** (pixel-art pass part 1 + K-3 fix). Deploy with the steps below.
+- **Deployed version on the Pi: 1.8** (11-08, installed by Claude over SSH; service active, no errors in the log, live framebuffer capture shows the new art).
 - All tests pass: `python3 -m unittest discover -s tests -t .` (24 tests) and `bash tests/test_wifi_fallback.sh` (2 scenarios). Locally, install `pillow numpy` or 7 tests are skipped; CI runs them all.
 - The repo is public on GitHub. README lists the required hardware ("What you need"); the screen driver comes from Adafruit's PiTFT installer, not `install.sh`.
 - GitHub Actions (`.github/workflows/python-package.yml`) runs both test commands on Python 3.11 and 3.13 on every push to `main`.
@@ -16,7 +16,7 @@ Snapshot for whoever picks this up next (human or Claude Code). Update it after 
 | Hardware | Pi 3B+, PiTFT 2.8" resistive, 4 buttons | yes |
 | OS | Raspberry Pi OS Bookworm 64-bit, console boot | yes |
 | Framebuffer | `/dev/fb1` (`ili9341drmfb`, 320×240, 32 bpp) — auto-detected | yes |
-| Screen app | 1.7, `service: active`, console paused at boot, touch `stmpe-ts`, buttons on GPIO 17/22/23/27 | yes |
+| Screen app | 1.8, `service: active`, console paused at boot, touch `stmpe-ts`, buttons on GPIO 17/22/23/27 | yes |
 | Location config | set on the device in `~/prayerpet.toml` (not recorded in the repo); Asr school confirmed by the owner | yes |
 | Touch, buttons | calibrated by the owner (`[touch]`, `[buttons] order / hint_edge` set) | yes (owner) |
 | Config backup | taken by the owner | yes (owner) |
@@ -33,9 +33,10 @@ Snapshot for whoever picks this up next (human or Claude Code). Update it after 
 | Kernel CVE-2026-98432 | **running 6.12.109 — not fixed** (needs ≥ 6.12.113); 6.12.115 is waiting in apt | **owner: `sudo apt full-upgrade -y` then reboot** |
 | Unattended upgrades | enabled, but only Debian origins. The Raspberry Pi origin (kernels, firmware) is missing, so kernels never update by themselves | **owner decision** |
 | SSH | `PasswordAuthentication yes` — passwords still accepted | **owner decision: keys only** |
+| sudo | works without a password for the owner's user (so `install.sh` runs over SSH) | yes — together with password SSH login this means a guessed password gives root |
 
 ## Open threads (suggested next steps)
-1. Deploy 1.8 and look at the screen (umbrella, Zz, hearts, weather icons).
+1. Look at 1.8 on the screen in daylight and rain (umbrella, hearts, weather icons) and say what to change.
 2. Security: `sudo apt update && sudo apt full-upgrade -y`, reboot, check `uname -r` ≥ 6.12.113. Add `"origin=Raspberry Pi Foundation,codename=${distro_codename},label=Raspberry Pi Foundation";` to `/etc/apt/apt.conf.d/50unattended-upgrades`. Turn off SSH passwords once key login is tested from every device.
 3. Send one `/ask` to confirm it answers; if not, read the error in the reply.
 4. K-12: profile why the screen app uses ~44 % of a core.

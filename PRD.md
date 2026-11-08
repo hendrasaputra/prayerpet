@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Product | Prayer Pet: prayer times, a pixel pet, weather/air quality and a system monitor on a Raspberry Pi with a 2.8" touchscreen |
-| Current version | 1.8 (built; 1.7 deployed) |
+| Current version | 1.8 (deployed 11-08) |
 | Document date | 2026-11-08 |
 | Owner | `<owner>` (placeholder — owner's details are kept out of the repo on purpose) |
 | Status | In daily use on one device; maintained through Claude Code |
@@ -237,6 +237,7 @@ buttons.py ▶│  btns ─┼─▶ actions ─▶ pet.py │  app.Schedule (st
 | D-39 | 11-08 | Repo docs: PRD/AGENTS/HANDSOFF; private details as placeholders | Owner rule: no private info in files without approval | — |
 | D-41 | 11-08 | One 5 px cell grid for the pet and all its effects and weather icons; hearts 3×3 cells beside the head; Zz move left under an umbrella; umbrella folds beside the pet during a speech bubble; rain lowers the pet 3 cells | Owner's pixel-art standard (K-4); fixes K-3 overlaps without shrinking the bubble | 3× effects kept; a second, smaller grid for small icons (would add a pixel size) |
 | D-42 | 11-08 | `scripts/screenshots.py` regenerates `docs/img` from code with placeholder data and forces the login name to `user` | The hotspot banner prints the login name; screenshots must not carry real names | Manual screenshots |
+| D-43 | 11-08 | `package.sh` builds the tarball with `COPYFILE_DISABLE=1 tar --no-xattrs` | macOS added Finder/Dropbox metadata; the Pi's tar printed dozens of "Ignoring unknown extended header" lines | — |
 | D-40 | 11-08 | CI on GitHub Actions: Python 3.11 + 3.13, pip `pillow numpy` (CI only; the Pi still uses apt), same two test commands as AGENTS.md | GitHub's starter template failed: no Pillow, and tested 3.9/3.10, which lack `tomllib` | Starter template with pytest + flake8 |
 
 ## 9. Release history

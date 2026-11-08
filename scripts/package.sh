@@ -28,7 +28,7 @@ STAGE="$(mktemp -d)"
 mkdir -p "${STAGE:?}/prayerpet"
 cp -r prayerpet tools install.sh prayerpet.toml README.md "${STAGE:?}/prayerpet/"
 find "${STAGE:?}" -name __pycache__ -prune -exec rm -rf {} +
-tar czf "dist/prayerpet-${VERSION}.tar.gz" -C "${STAGE:?}" prayerpet
+COPYFILE_DISABLE=1 tar --no-xattrs -czf "dist/prayerpet-${VERSION}.tar.gz" -C "${STAGE:?}" prayerpet
 rm -rf "${STAGE:?}"
 echo "Built dist/prayerpet-${VERSION}.tar.gz"
 echo "Deploy:  scp dist/prayerpet-${VERSION}.tar.gz <user>@<pi-host>:~"
