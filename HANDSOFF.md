@@ -6,6 +6,7 @@ Snapshot for whoever picks this up next (human or Claude Code). Update it after 
 - **Deployed version on the Pi: 1.7.** This repo contains exactly 1.7 plus tests, scripts and docs (no app changes since).
 - All tests pass: `python3 -m unittest discover -s tests -t .` (24 tests) and `bash tests/test_wifi_fallback.sh` (2 scenarios).
 - The repo is public on GitHub. README lists the required hardware ("What you need"); the screen driver comes from Adafruit's PiTFT installer, not `install.sh`.
+- GitHub Actions (`.github/workflows/python-package.yml`) runs both test commands on Python 3.11 and 3.13 on every push to `main`.
 - Everything was built and tested in a cloud workspace; the owner installs on the Pi by hand (scp + `install.sh`). Claude cannot reach the Pi directly unless the owner runs commands or links a shell.
 
 ## Device state (owner-reported)

@@ -234,6 +234,7 @@ buttons.py ▶│  btns ─┼─▶ actions ─▶ pet.py │  app.Schedule (st
 | D-37 | 11-01 | Run at `arm_freq=800` with `dtoverlay=disable-bt` on the current cable | Passes the load test (`0x0`); official 5.1 V supply hard to find locally; owner chose to stay at 800 | Higher clocks (not tested) |
 | D-38 | 11-01 | Pi 2 v1.1 cannot boot the 64-bit card; TL-WN725N is 2.4 GHz only and AP mode landed in Linux only in Mar 2026 → use Pi 2 as a wired helper (Pi-hole / exit node), not for the pet | Hardware limits | Moving the pet to the Pi 2 |
 | D-39 | 11-08 | Repo docs: PRD/AGENTS/HANDSOFF; private details as placeholders | Owner rule: no private info in files without approval | — |
+| D-40 | 11-08 | CI on GitHub Actions: Python 3.11 + 3.13, pip `pillow numpy` (CI only; the Pi still uses apt), same two test commands as AGENTS.md | GitHub's starter template failed: no Pillow, and tested 3.9/3.10, which lack `tomllib` | Starter template with pytest + flake8 |
 
 ## 9. Release history
 
@@ -249,6 +250,7 @@ buttons.py ▶│  btns ─┼─▶ actions ─▶ pet.py │  app.Schedule (st
 | 1.7 | 11-01 | `/feed` `/pat` aware of sleep; `/ask` model fallback; default model `gemini-3.5-flash-lite` |
 | repo | 11-08 | Project moved to a repository with tests, packaging script and docs (no app changes) |
 | repo | 11-08 | README: "What you need" hardware section (Pi 3B+, PiTFT 2.8" resistive, power, OS; screen driver set up first with Adafruit's installer); scripts marked executable in git (no app changes) |
+| repo | 11-08 | GitHub Actions runs the unit tests and the hotspot script test on Python 3.11 and 3.13 (D-40) |
 
 ## 10. Security & privacy
 
