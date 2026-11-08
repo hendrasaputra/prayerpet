@@ -3,41 +3,43 @@
 Snapshot for whoever picks this up next (human or Claude Code). Update it after every session.
 
 ## Where things stand
-- **Deployed version on the Pi: 1.7.** This repo contains exactly 1.7 plus tests, scripts and docs (no app changes since).
-- All tests pass: `python3 -m unittest discover -s tests -t .` (24 tests) and `bash tests/test_wifi_fallback.sh` (2 scenarios).
+- **Deployed version on the Pi: 1.7. Built, not deployed: 1.8** (pixel-art pass part 1 + K-3 fix). Deploy with the steps below.
+- All tests pass: `python3 -m unittest discover -s tests -t .` (24 tests) and `bash tests/test_wifi_fallback.sh` (2 scenarios). Locally, install `pillow numpy` or 7 tests are skipped; CI runs them all.
 - The repo is public on GitHub. README lists the required hardware ("What you need"); the screen driver comes from Adafruit's PiTFT installer, not `install.sh`.
 - GitHub Actions (`.github/workflows/python-package.yml`) runs both test commands on Python 3.11 and 3.13 on every push to `main`.
-- Everything was built and tested in a cloud workspace; the owner installs on the Pi by hand (scp + `install.sh`). Claude cannot reach the Pi directly unless the owner runs commands or links a shell.
+- `python3 scripts/screenshots.py` regenerates every image in `docs/img` (placeholder data; login name forced to `user`).
+- Claude can reach the Pi over SSH from the owner's Mac (login kept out of the repo). Read-only checks are fine; ask before sudo, upgrades, restarts or reboots.
 
-## Device state (owner-reported)
+## Device state (checked over SSH on 11-08 unless noted)
 | Area | State | Verified? |
 |---|---|---|
 | Hardware | Pi 3B+, PiTFT 2.8" resistive, 4 buttons | yes |
 | OS | Raspberry Pi OS Bookworm 64-bit, console boot | yes |
-| Framebuffer | `/dev/fb0` or `/dev/fb1` (`ili9341drmfb`, 320×240, 32 bpp) — auto-detected | yes |
-| Screen app | `prayerpet.service` running, screen shows pages | yes |
-| Location config | Set on the device in `~/prayerpet.toml` (not recorded in the repo) | **Asr school (shafi vs hanafi) — owner to confirm** |
-| Telegram bot | running; `/times /status /screen /pet /feed` confirmed working in a screenshot | yes |
-| `/ask` | key set; model changed to `gemini-3.5-flash-lite` after a 404 | **not yet confirmed working** |
+| Framebuffer | `/dev/fb1` (`ili9341drmfb`, 320×240, 32 bpp) — auto-detected | yes |
+| Screen app | 1.7, `service: active`, console paused at boot, touch `stmpe-ts`, buttons on GPIO 17/22/23/27 | yes |
+| Location config | set on the device in `~/prayerpet.toml` (not recorded in the repo); Asr school confirmed by the owner | yes |
+| Touch, buttons | calibrated by the owner (`[touch]`, `[buttons] order / hint_edge` set) | yes (owner) |
+| Config backup | taken by the owner | yes (owner) |
+| fps | 4 | yes |
+| Telegram bot | running. Long run of connection time-outs on 11-03 (~20 min), recovered by itself | yes |
+| `/ask` | key and `gemini-3.5-flash-lite` are valid (model lookup 11-08); used once on 11-06. The bot doesn't log `/ask` errors, so the answer itself is unconfirmed | **owner: send one `/ask`** |
 | Antigravity CLI (`agy`) | installed, signed in | **whether it reads `~/.gemini/GEMINI.md` not confirmed** |
-| Tailscale | installed and running (status page shows an IP) | yes |
+| Tailscale | running; 1.104.4 installed, 1.104.5 available | yes |
 | Wi-Fi setup hotspot | installed and tested by the owner | yes |
-| log2ram | working; journald capped at 30 MB; log2ram SIZE 128M, MAIL=false | yes |
-| SD card health | `dmesg` clean; `tune2fs`: state clean, no error count | yes (11-01) |
-| Power | New short micro-USB cable + 5 V/3 A USB-A charger; `arm_freq=800` and `dtoverlay=disable-bt` in `/boot/firmware/config.txt`; 5-min load test `0x0` | yes — owner chose to **stay at 800 MHz** |
-| Touch | v1.2 fix shipped; calibration | **not confirmed** (run `prayerpet --input-test`) |
-| Buttons | working via gpiozero | **physical `order` and `hint_edge` not confirmed** |
-| Security updates | advised: `full-upgrade`, unattended-upgrades incl. Raspberry Pi origin, SSH keys only | **not confirmed which were done** |
-| Kernel CVE-2026-98432 | Raspberry Pi kernel fix not confirmed as of 11-01 | **check `uname -r` ≥ 6.12.113** |
-| Config backup | command provided | **not confirmed taken** |
-| fps | may have been set to 2 during power tests | check `grep fps ~/prayerpet.toml` (4 is normal) |
+| log2ram | working; journald capped at 30 MB | yes (11-01) |
+| SD card | 4.9 GB used of 235 GB; health clean on 11-01 | yes |
+| Power | `get_throttled` = `0x0`, 800 MHz, 62 °C | yes — owner chose to **stay at 800 MHz** |
+| CPU load | load ~4.6 shortly after boot. Two `node` worker processes from the owner's other project (nice 10) use most of it; the screen app uses ~44 % of one core (K-12) | yes |
+| Kernel CVE-2026-98432 | **running 6.12.109 — not fixed** (needs ≥ 6.12.113); 6.12.115 is waiting in apt | **owner: `sudo apt full-upgrade -y` then reboot** |
+| Unattended upgrades | enabled, but only Debian origins. The Raspberry Pi origin (kernels, firmware) is missing, so kernels never update by themselves | **owner decision** |
+| SSH | `PasswordAuthentication yes` — passwords still accepted | **owner decision: keys only** |
 
 ## Open threads (suggested next steps)
-1. Confirm `/ask` works with `gemini-3.5-flash-lite`; if quota/billing errors, pick a free-tier Flash-Lite model from the list command in PRD/README.
-2. Run `prayerpet --input-test`; set `[touch]` calibration and `[buttons] order / hint_edge`.
-3. Take the config backup (below) and a full SD image; store encrypted.
-4. Check kernel version for the CVE fix; run `sudo apt update && sudo apt full-upgrade -y` and reboot.
-5. Fix cosmetic overlaps K-3 and start the pixel-consistency pass B-12 (PRD).
+1. Deploy 1.8 and look at the screen (umbrella, Zz, hearts, weather icons).
+2. Security: `sudo apt update && sudo apt full-upgrade -y`, reboot, check `uname -r` ≥ 6.12.113. Add `"origin=Raspberry Pi Foundation,codename=${distro_codename},label=Raspberry Pi Foundation";` to `/etc/apt/apt.conf.d/50unattended-upgrades`. Turn off SSH passwords once key login is tested from every device.
+3. Send one `/ask` to confirm it answers; if not, read the error in the reply.
+4. K-12: profile why the screen app uses ~44 % of a core.
+5. B-12 part 2: pixel font (bundle an OFL bitmap font, or add an apt package) and pixel UI chrome. Owner to choose.
 6. Next features the owner showed interest in: prayer chime (B-1), Ramadan mode (B-2), Pi 2 as Pi-hole + Tailscale exit node (B-8), weekly backup via bot (B-4).
 
 ## How to deploy a change

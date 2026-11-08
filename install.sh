@@ -9,7 +9,7 @@ if [ "$(id -u)" -eq 0 ]; then
   echo "Run this as your normal user (not with sudo). It will ask for sudo when needed."; exit 1
 fi
 
-echo "Prayer Pet installer v1.7"
+echo "Prayer Pet installer v1.8"
 ME="$(id -un)"
 HOMEDIR="$HOME"
 SRC="$(cd "$(dirname "$0")" && pwd)"

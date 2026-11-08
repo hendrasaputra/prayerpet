@@ -35,6 +35,38 @@ TEXT = {
                connected="connected", on="On", off="Off", none="none", unsynced="clock not synced"),
 }
 
+PX = 5  # pixel-art cell size, the same as the pet (pet.S)
+
+# Weather icons as pixel art. Y sun/moon, C cloud, c cloud shade, D dark cloud, d dark shade, R rain, W snow,
+# B lightning. Big icons are 12x10 cells, small ones 5x4 cells.
+_CLOUD = ["......CCC...", "..CCC.CCCCC.", ".CCCCCCCCCC.", "CCCCCCCCCCCC", "CCCCCCCCCCCC", ".cccccccccc."]
+_DARK = [r.replace("C", "D").replace("c", "d") for r in _CLOUD]
+ICONS_BIG = dict(
+    clear=["....Y..Y....", ".Y........Y.", "....YYYY....", "...YYYYYY...", "YY.YYYYYY.YY",
+           "...YYYYYY...", "....YYYY....", ".Y........Y.", "....Y..Y....", "............"],
+    night=["....YYYY....", "...YYY......", "..YYY.......", "..YY........", "..YY........",
+           "..YYY.......", "...YYY......", "....YYYY....", "............", "............"],
+    partly=["......Y..Y..", "........YY..", ".......YYYY.", "....CCYYYYYY", "..CCCCCYYY..",
+            ".CCCCCCCC...", "CCCCCCCCCCC.", "CCCCCCCCCCC.", ".ccccccccc..", "............"],
+    cloud=["............", "............"] + _CLOUD + ["............", "............"],
+    fog=_CLOUD + ["............", "CCCCCCCC....", "............", "...CCCCCCCCC"],
+    drizzle=_DARK + ["............", "...R....R...", "............", "......R....."],
+    rain=_DARK + ["............", "..R..R..R...", ".R..R..R....", "R..R..R....."],
+    storm=_DARK + ["......BB....", ".....BB.....", "....BBBB....", "......B....."],
+    snow=_CLOUD + ["............", "..W...W...W.", "............", "....W...W..."],
+)
+ICONS_SMALL = dict(
+    clear=[".YYY.", "YYYYY", "YYYYY", ".YYY."],
+    night=["..YY.", ".YY..", ".YY..", "..YY."],
+    partly=["...YY", ".CCYY", "CCCCC", ".ccc."],
+    cloud=["..CC.", ".CCCC", "CCCCC", ".ccc."],
+    fog=["CCCC.", ".....", ".CCCC", "....."],
+    drizzle=[".DD..", "DDDDD", ".....", "..R.."],
+    rain=[".DD..", "DDDDD", ".....", "R.R.R"],
+    storm=[".DD..", "DDDDD", "..B..", ".B..."],
+    snow=[".CC..", "CCCCC", ".....", "W.W.W"],
+)
+
 FONT_DIRS = ["/usr/share/fonts/truetype/dejavu", "/usr/share/fonts/dejavu", "/Library/Fonts",
              "/System/Library/Fonts/Supplemental"]
 
@@ -404,58 +436,19 @@ class Renderer:
         return img
 
     # ---------------------------------------------------------- weather
-    def weather_icon(self, d, x, y, size, kind, is_day=True):
-        """Draw a simple weather icon in the box (x, y, size, size)."""
-        c = self.c
-        s = size
-
-        def cloud(cx, cy, w, col):
-            h = w * 0.55
-            d.ellipse([cx - w * 0.5, cy - h * 0.2, cx - w * 0.05, cy + h * 0.45], fill=col)
-            d.ellipse([cx - w * 0.3, cy - h * 0.65, cx + w * 0.2, cy + h * 0.3], fill=col)
-            d.ellipse([cx, cy - h * 0.4, cx + w * 0.5, cy + h * 0.45], fill=col)
-            d.rectangle([cx - w * 0.3, cy, cx + w * 0.3, cy + h * 0.45], fill=col)
-
-        def sun(cx, cy, r):
-            if is_day:
-                import math
-                for i in range(8):
-                    a = i * math.pi / 4
-                    d.line([cx + math.cos(a) * r * 1.35, cy + math.sin(a) * r * 1.35,
-                            cx + math.cos(a) * r * 1.8, cy + math.sin(a) * r * 1.8], fill=c["sun"],
-                           width=max(1, int(r / 4)))
-                d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=c["sun"])
-            else:
-                d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(230, 225, 200))
-                d.ellipse([cx - r * 0.3, cy - r * 1.1, cx + r * 1.3, cy + r * 0.5], fill=c["bg"])
-
-        cx, cy = x + s / 2, y + s / 2
-        if kind == "clear":
-            sun(cx, cy, s * 0.22)
-            return
-        if kind == "partly":
-            sun(x + s * 0.36, y + s * 0.34, s * 0.17)
-            cloud(cx + s * 0.08, cy + s * 0.12, s * 0.7, c["cloud"])
-            return
-        dark = (150, 158, 172) if kind in ("rain", "storm") else c["cloud"]
-        cloud(cx, cy - s * 0.08, s * 0.85, dark)
-        if kind == "fog":
-            for i in range(2):
-                yy = y + s * (0.78 + i * 0.12)
-                d.line([x + s * 0.15, yy, x + s * 0.85, yy], fill=c["cloud"], width=max(1, s // 16))
-        elif kind in ("drizzle", "rain"):
-            n = 2 if kind == "drizzle" else 3
-            for i in range(n):
-                xx = x + s * (0.3 + i * 0.2)
-                d.line([xx, y + s * 0.72, xx - s * 0.06, y + s * 0.92], fill=c["rain"], width=max(1, s // 14))
-        elif kind == "storm":
-            b = [(cx + s * 0.02, y + s * 0.58), (cx - s * 0.12, y + s * 0.8), (cx, y + s * 0.8),
-                 (cx - s * 0.08, y + s * 0.98), (cx + s * 0.14, y + s * 0.72), (cx + s * 0.02, y + s * 0.72)]
-            d.polygon(b, fill=c["sun"])
-        elif kind == "snow":
-            for i in range(3):
-                xx = x + s * (0.3 + i * 0.2)
-                d.ellipse([xx - 2, y + s * 0.8 - 2, xx + 2, y + s * 0.8 + 2], fill=(255, 255, 255))
+    def weather_icon(self, d, x, y, kind, is_day=True, big=True):
+        """Pixel-art weather icon on the pet's 5 px grid: big 12x10 cells, small 5x4 cells."""
+        art = (ICONS_BIG if big else ICONS_SMALL)
+        grid = art.get(kind if (kind != "clear" or is_day) else "night", art["cloud"])
+        sun = self.c["sun"] if is_day else (230, 225, 200)
+        cmap = {"Y": sun, "C": self.c["cloud"], "c": (150, 158, 172), "D": (150, 158, 172), "d": (110, 118, 132),
+                "R": self.c["rain"], "W": (255, 255, 255), "B": self.c["sun"]}
+        x, y = PX * round(x / PX), PX * round(y / PX)
+        for gy, row in enumerate(grid):
+            for gx, ch in enumerate(row):
+                col = cmap.get(ch)
+                if col:
+                    d.rectangle([x + gx * PX, y + gy * PX, x + gx * PX + PX - 1, y + gy * PX + PX - 1], fill=col)
 
     def _ago(self, ts, now_ts):
         mins = int((now_ts - ts) // 60)
@@ -483,7 +476,7 @@ class Renderer:
             return img
 
         kind, en, idn = describe(wx.get("code"))
-        self.weather_icon(d, 8, 40, 60, kind, bool(wx.get("is_day", 1)))
+        self.weather_icon(d, 10, 40, kind, bool(wx.get("is_day", 1)))
         d.text((76, 34), f"{round(wx['temp'])}°", font=f.huge, fill=c["text"])
         d.text((76, 76), idn if id_ else en, font=f.row_b, fill=c["text"])
         if wx.get("feels") is not None:
@@ -531,7 +524,7 @@ class Renderer:
                 cx = 4 + colw * i + colw / 2
                 d.text((cx, 158), f"{h['time']}:00", font=f.tiny, fill=c["dim"], anchor="mm")
                 k = describe(h.get("code"))[0]
-                self.weather_icon(d, int(cx - 10), 164, 20, k, bool(h.get("is_day", 1)))
+                self.weather_icon(d, cx - 12, 165, k, bool(h.get("is_day", 1)), big=False)
                 d.text((cx, 192), f"{round(h['temp'])}°" if h.get("temp") is not None else "-", font=f.small_b,
                        fill=c["text"], anchor="rm")
                 if h.get("rain") is not None:

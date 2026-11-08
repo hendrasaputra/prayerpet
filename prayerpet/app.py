@@ -261,7 +261,7 @@ def run(cfg, display, touch=None, at=None, frames=None, page=None, verbose=False
             elif page == "weather":
                 img = renderer.weather(now, sched, info)
             else:
-                anim.top = anim.ay + (64 if message else 36)  # make room for the speech bubble
+                anim.place(bubble=bool(message), rain=anim.rain)  # room for the speech bubble / umbrella
                 img = renderer.home(now, sched, info, pet, anim, mood)
                 if message:
                     img = renderer.speech(img, message["text"], time.time(), anim.x)

@@ -34,6 +34,7 @@ docs/img/             screenshots generated from code
 | Run all tests | `python3 -m unittest discover -s tests -t .` and `bash tests/test_wifi_fallback.sh` |
 | Build a release | `bash scripts/package.sh` (runs tests, checks versions, refuses to ship secrets) |
 | Render a frame | `python3 -m prayerpet --config prayerpet.toml --png /tmp/x.png --at "2026-10-31 14:47" --page home` |
+| Regenerate `docs/img` | `python3 scripts/screenshots.py` (all states, placeholder data; or pass an output folder) |
 | Preview window (desktop) | `pip install pygame` then `python3 -m prayerpet --config prayerpet.toml --window` |
 | Prayer times | `python3 -m prayerpet --config prayerpet.toml --times 2026-12-25` |
 
@@ -44,7 +45,7 @@ Tests that need missing packages are skipped, not failed.
 1. **Python 3.11 compatible** (Bookworm). No 3.12+ syntax or stdlib features. Tests also pass on 3.13 (Trixie).
 2. **No pip on the Pi.** Runtime dependencies must come from apt: `python3-pil python3-numpy python3-evdev python3-gpiozero python3-lgpio`. Network code uses `urllib` only. Adding a dependency means adding it to `install.sh` and PRD §5.
 3. **Weak hardware.** Pi 3B+ currently capped at 800 MHz (power issue, see HANDSOFF). Keep per-frame work small (fps 4; render ~30 ms on the Pi). Never block the render loop on network or subprocesses — use the existing background threads.
-4. **Screen is 320×240.** Check every layout change by rendering PNGs at the alert, prayer, sleep, hungry, rain+smog, hotspot and speech-bubble states (see the script pattern in `tests/test_app.py` and `docs/img/`). Look at the images before shipping.
+4. **Screen is 320×240.** Check every layout change by rendering PNGs at the alert, prayer, sleep, hungry, rain+smog, hotspot and speech-bubble states (`python3 scripts/screenshots.py`). Look at the images before shipping.
 5. **The bot never runs shell commands** and only answers `allowed_ids` in private chats. New bot commands must be fixed, hard-coded handlers. Anything that reaches the screen goes through `inbox.post()`; `inbox.drain()` accepts only `say|feed|pat`.
 6. **Settings stay in sync** in three places: `config.py` DEFAULTS, `prayerpet.toml` template (with a plain-language comment), README. The installer never overwrites the user's `~/prayerpet.toml` or `~/.prayerpet-telegram.toml`, so new settings must have defaults in code.
 7. **Bilingual strings** (`id` and `en`) for anything on screen or in bot replies.

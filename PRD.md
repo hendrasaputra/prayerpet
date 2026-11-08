@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Product | Prayer Pet: prayer times, a pixel pet, weather/air quality and a system monitor on a Raspberry Pi with a 2.8" touchscreen |
-| Current version | 1.7 (deployed) |
+| Current version | 1.8 (built; 1.7 deployed) |
 | Document date | 2026-11-08 |
 | Owner | `<owner>` (placeholder — owner's details are kept out of the repo on purpose) |
 | Status | In daily use on one device; maintained through Claude Code |
@@ -79,7 +79,7 @@ Each feature lists the requirement and how it is checked.
 ### F2. Pet ("Nomi")
 - 16×15 pixel sprite drawn at 5× (sprout on head). States: idle (bob, blink, wanders), happy (^^ eyes; while a message is shown or after a pat), alert (wide eyes, "!", hops; within `remind_minutes_before` of a prayer), prayer (calm, closed eyes; within `highlight_minutes_after`), sleep (from Isha + 60 min until Fajr − 20 min; Zz; screen dims), hungry (<25 food: drooping sprout, worried face, food-bowl thought bubble), sad (<25 joy).
 - Stats: food drops ~12/h awake, joy ~8/h awake; ×0.4 while asleep; capped catch-up of 48 h after power-off. Saved to `~/.prayerpet-state.json` every minute and on feed/pat/exit.
-- Weather reactions: holds an umbrella and rain falls when the current weather is drizzle/rain/storm (and data is under 3 h old); wears a mask when US AQI > 150.
+- Weather reactions: holds an umbrella and rain falls when the current weather is drizzle/rain/storm (and data is under 3 h old); wears a mask when US AQI > 150. While a speech bubble is shown the umbrella is folded beside the pet; while asleep in the rain the Zz float on the left (v1.8).
 - Interactions: tap pet → feed if food < 60 else pat; Feed/Pat buttons; `/feed` `/pat` from Telegram; `prayerpet --feed/--pat`. Feeding/patting is ignored while asleep (and the bot says so, v1.7).
 
 ### F3. Pages and layout (320×240)
@@ -188,8 +188,9 @@ buttons.py ▶│  btns ─┼─▶ actions ─▶ pet.py │  app.Schedule (st
 ### 7.4 Visual design
 - Dark theme: bg `#0E1116`, panel `#1A1F27`, text `#E8E6E3`, dim `#7A828E`, gold `#F2B544` (next/alert), teal `#4FD1A5` (now/OK), red `#FF6B6B`, blue `#5AA9FF`. AQI colours green/yellow/orange/red/purple/maroon.
 - Fonts: DejaVu Sans / Bold at 10–34 px (antialiased; see backlog B-12 for the pixel-font question).
+- Pixel grid (v1.8): the pet and everything around it (umbrella, rain, Zz, "!", hearts, food bowl, thought bubble, shadow) and the weather icons are drawn in 5×5 px cells; pet positions snap to the cell grid of the pet area.
 - Pet: mint body `#7ED6A5`, dark outline, pink cheeks, green sprout; hungry = olive body, sleep = dark teal.
-- Screenshots: `docs/img/` (generated from code with neutral sample data; `overview.png` shows all states).
+- Screenshots: `docs/img/`, made by `python3 scripts/screenshots.py` (neutral sample data, 2× nearest-neighbour; `overview.png` shows the main states).
 
 ## 8. Decision log
 
@@ -234,6 +235,8 @@ buttons.py ▶│  btns ─┼─▶ actions ─▶ pet.py │  app.Schedule (st
 | D-37 | 11-01 | Run at `arm_freq=800` with `dtoverlay=disable-bt` on the current cable | Passes the load test (`0x0`); official 5.1 V supply hard to find locally; owner chose to stay at 800 | Higher clocks (not tested) |
 | D-38 | 11-01 | Pi 2 v1.1 cannot boot the 64-bit card; TL-WN725N is 2.4 GHz only and AP mode landed in Linux only in Mar 2026 → use Pi 2 as a wired helper (Pi-hole / exit node), not for the pet | Hardware limits | Moving the pet to the Pi 2 |
 | D-39 | 11-08 | Repo docs: PRD/AGENTS/HANDSOFF; private details as placeholders | Owner rule: no private info in files without approval | — |
+| D-41 | 11-08 | One 5 px cell grid for the pet and all its effects and weather icons; hearts 3×3 cells beside the head; Zz move left under an umbrella; umbrella folds beside the pet during a speech bubble; rain lowers the pet 3 cells | Owner's pixel-art standard (K-4); fixes K-3 overlaps without shrinking the bubble | 3× effects kept; a second, smaller grid for small icons (would add a pixel size) |
+| D-42 | 11-08 | `scripts/screenshots.py` regenerates `docs/img` from code with placeholder data and forces the login name to `user` | The hotspot banner prints the login name; screenshots must not carry real names | Manual screenshots |
 | D-40 | 11-08 | CI on GitHub Actions: Python 3.11 + 3.13, pip `pillow numpy` (CI only; the Pi still uses apt), same two test commands as AGENTS.md | GitHub's starter template failed: no Pillow, and tested 3.9/3.10, which lack `tomllib` | Starter template with pytest + flake8 |
 
 ## 9. Release history
@@ -251,6 +254,7 @@ buttons.py ▶│  btns ─┼─▶ actions ─▶ pet.py │  app.Schedule (st
 | repo | 11-08 | Project moved to a repository with tests, packaging script and docs (no app changes) |
 | repo | 11-08 | README: "What you need" hardware section (Pi 3B+, PiTFT 2.8" resistive, power, OS; screen driver set up first with Adafruit's installer); scripts marked executable in git (no app changes) |
 | repo | 11-08 | GitHub Actions runs the unit tests and the hotspot script test on Python 3.11 and 3.13 (D-40) |
+| 1.8 | 11-08 | Pixel-art pass (B-12 part 1): pet effects, umbrella, rain, Zz, hearts, bowl and weather icons on the pet's 5 px grid; K-3 overlaps fixed; `scripts/screenshots.py` |
 
 ## 10. Security & privacy
 
@@ -276,15 +280,16 @@ buttons.py ▶│  btns ─┼─▶ actions ─▶ pet.py │  app.Schedule (st
 |---|---|---|---|
 | K-1 | Touch calibration not yet confirmed on the device after the v1.2 fix | Taps may land in the wrong zone | `prayerpet --input-test` |
 | K-2 | Button physical order / edge not yet confirmed | Labels may not line up | `order`, `hint_edge` |
-| K-3 | In sleep + rain, umbrella overlaps the "Zz"; umbrella crowds the speech-bubble tail | Cosmetic | see `docs/img/` |
-| K-4 | UI mixes pixel scales (pet 5×, hearts/bowl 3×), smooth shapes (umbrella, weather icons) and antialiased fonts | Not "pixel-perfect" per owner's standard | Backlog B-12 |
+| K-3 | ~~In sleep + rain, umbrella overlaps the "Zz"; umbrella crowds the speech-bubble tail~~ | Fixed in 1.8 | `docs/img/sleep-rain.png`, `speech-rain.png` |
+| K-4 | Fonts are antialiased DejaVu, and UI chrome (rounded panels, bars, AQI badge, Wi-Fi bars, speech bubble) is smooth. Pet art and weather icons are on the 5 px grid since 1.8 | Not fully "pixel-perfect" per owner's standard | Backlog B-12 part 2 |
 | K-5 | Maghrib can be 1 min later than Kemenag on some dates | Safe direction | |
 | K-6 | Night window uses today's Isha/Fajr; after midnight edge cases rely on `now < wake` | Fine in the tropics; untested at high latitudes | |
-| K-7 | `gemini-3.5-flash-lite` free-tier status not confirmed | `/ask` may hit quota/billing | |
+| K-7 | `gemini-3.5-flash-lite` free-tier status not confirmed. Key and model verified valid on 11-08 (model lookup) | `/ask` may hit quota/billing | Send one `/ask` |
 | K-8 | Antigravity CLI RAM use on 1 GB unknown; whether it reads `~/.gemini/GEMINI.md` unconfirmed | Assistant may be slow or ignore the guide | |
 | K-9 | Telegram may be blocked on some networks | Bot offline there | `HTTPS_PROXY` |
 | K-10 | Processor capped at 800 MHz (power) | Slower installs/agy | Remove `arm_freq` with a proper supply |
-| K-11 | Raspberry Pi kernel fix for CVE-2026-98432 not confirmed as of 11-01 | Exposure on LAN/tailnet | re-check `uname -r` |
+| K-11 | Pi runs kernel 6.12.109 (11-08); the CVE-2026-98432 fix is in 6.12.113+, and 6.12.115 is waiting in apt. Unattended-upgrades does not include the Raspberry Pi origin, so kernels never update by themselves | Exposure on LAN/tailnet | Owner: `sudo apt full-upgrade` + reboot; add the Raspberry Pi origin |
+| K-12 | The screen app used ~44 % of one core on the Pi (11-08, 800 MHz), well above the ~12 % that 30 ms renders at fps 4 suggest | Less CPU headroom; more heat (62 °C) | Profile on the Pi: time `renderer.home` and `display.show` separately |
 
 ## 13. Backlog / ideas (rough priority)
 
@@ -300,8 +305,8 @@ buttons.py ▶│  btns ─┼─▶ actions ─▶ pet.py │  app.Schedule (st
 | B-8 | Pi 2 as Pi-hole + Tailscale exit node at home | D-38 |
 | B-9 | Simple button game (word-game prototype) | |
 | B-10 | Living-room TV prayer clock (HDMI layout) | Reuses prayer engine |
-| B-11 | Fix K-3 overlaps | |
-| B-12 | Pixel-consistency pass: single pixel scale for all sprites/effects, pixel-art icons for weather/umbrella, pixel font at native size | Owner's pixel-art standard |
+| B-11 | ~~Fix K-3 overlaps~~ | Done in 1.8 |
+| B-12 | Pixel-consistency pass. Part 1 done in 1.8 (sprites, effects, umbrella, weather icons on one 5 px grid). Part 2: pixel font at native size (needs a bundled OFL bitmap font or a new apt package) and pixel UI chrome | Owner's pixel-art standard |
 | B-13 | Move to Raspberry Pi OS Trixie (fresh install) before 2028-06-30 | Test app on Python 3.13 (tests already pass on 3.13) |
 | B-14 | Upgrade path: Pi 4 (4 GB) or Pi 5; check PiTFT + cooler fit; Pi 5 RTC battery keeps time offline | |
 

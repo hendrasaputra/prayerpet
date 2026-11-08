@@ -1,6 +1,5 @@
 """The creature: saved stats, mood, and pixel-art drawing."""
 import json
-import math
 import os
 import random
 import time
@@ -27,8 +26,27 @@ BODY = [
 ]
 GRID_W, GRID_H = 16, len(BODY)
 
-HEART = [".X.X.", "XXXXX", "XXXXX", ".XXX.", "..X.."]
-BOWL = ["..X.X..", ".X.X.X.", "WWWWWWW", "BBBBBBB", ".BBBBB.", "..BBB.."]
+S = 5  # one pixel-art cell = 5 screen pixels, for the pet AND everything drawn around it
+
+# Art around the pet, in cells. Letters map to colours in PetAnimator.
+HEART = ["X.X", "XXX", ".X."]
+BOWL = [".X.X.", "WWWWW", "BBBBB", ".BBB."]            # inside the thought bubble
+BOWL_FED = [".X..X.", "WWWWWW", "BBBBBB", ".BBBB."]    # in front of the pet while it eats
+THOUGHT = [".DDDDD.", "D.....D", "D.....D", "D.....D", "D.....D", ".DDDDD."]
+Z_SMALL = ["XXX", "..X", ".X.", "XXX"]
+Z_BIG = ["XXXX", "..X.", ".X..", "XXXX"]
+BANG = ["X", "X", "X", ".", "X"]
+# open umbrella: columns -1..16 (two cells wider than the pet), rows -6..-1 above the sprite
+UMBRELLA = [
+    "........HH........",
+    "....UUUUUUUUUU....",
+    "..UULUUUUUUUUDUU..",
+    ".UULUUUUUUUUUUDUU.",
+    "UUUUUUUUUUUUUUUUUU",
+    "UU..UU..UU..UU..UU",
+]
+# folded umbrella standing beside the pet (used while the speech bubble needs the space above)
+UMBRELLA_SHUT = [".H", ".U", ".U", ".U", ".D", ".U", ".H", ".H", ".H", ".H", "HH"]
 
 
 class PetState:
@@ -86,42 +104,54 @@ class PetState:
 
 
 class PetAnimator:
-    """Keeps short-lived animation state: position, blinking, reactions."""
+    """Keeps short-lived animation state: position, blinking, reactions.
+
+    Everything is drawn in cells of S x S screen pixels on one grid that starts at the pet area's corner,
+    so the pet, its umbrella, rain, hearts and Zz always share the same pixel size and line up.
+    """
 
     def __init__(self, area, colors):
         self.ax, self.ay, self.aw, self.ah = area
-        self.top = self.ay + 36  # sprite top (leaves room for Zz / ! above)
+        self.cols = self.aw // S                 # area width in cells (32)
         self.c = colors
-        self.scale = 5
-        self.x = self.ax + (self.aw - GRID_W * self.scale) // 2
+        self.scale = S
+        self.place(bubble=False)
+        self.x = self.ax + (self.cols - GRID_W) // 2 * S
         self.target_x = self.x
         self.next_blink = time.time() + 3
         self.blink_until = 0
         self.reaction = None  # ("heart"|"food", until)
         self.next_wander = time.time() + 4
         self.facing = 0  # -1 left, 0 centre, 1 right
+        self.rain = False
+
+    def place(self, bubble=False, rain=False):
+        """Sprite top row: room above for Zz / "!" / the umbrella, or lower under a speech bubble."""
+        self.top = self.ay + S * (13 if bubble else 10 if rain else 7)
+        self.bubble = bubble
 
     def react(self, kind, seconds=2.0):
         self.reaction = (kind, time.time() + seconds)
 
     def hit(self, x, y):
-        s = self.scale
-        top = self.top
-        return self.x - 10 <= x <= self.x + GRID_W * s + 10 and top - 10 <= y <= top + GRID_H * s + 10
+        return (self.x - 10 <= x <= self.x + GRID_W * S + 10
+                and self.top - 10 <= y <= self.top + GRID_H * S + 10)
 
     def draw(self, img, mood, t=None, rain=False, mask=False):
         t = t or time.time()
         d = ImageDraw.Draw(img)
-        s = self.scale
-        sprite_w = GRID_W * s
+        if rain != self.rain:
+            self.rain = rain
+            self.place(self.bubble, rain)
 
-        # wander when awake and idle
+        # wander when awake and idle (whole cells; keep one cell clear of the area edges for the umbrella)
+        lo, hi = self.ax + S, self.ax + (self.cols - GRID_W - 2) * S
         if mood in ("idle", "hungry", "sad") and t > self.next_wander:
-            lo, hi = self.ax + 4, self.ax + self.aw - sprite_w - 4
-            self.target_x = random.randint(lo, max(lo, hi))
+            self.target_x = self.ax + random.randint(1, self.cols - GRID_W - 2) * S
             self.next_wander = t + random.uniform(4, 9)
         if mood in ("sleep", "alert", "prayer"):
-            self.target_x = self.ax + (self.aw - sprite_w) // 2
+            self.target_x = self.ax + (self.cols - GRID_W) // 2 * S
+        self.target_x = max(lo, min(hi, self.target_x))
         dx = self.target_x - self.x
         if abs(dx) > 1:
             step = 3 if mood != "hungry" else 1
@@ -130,65 +160,62 @@ class PetAnimator:
         else:
             self.facing = 0
 
-        # vertical motion
+        # vertical motion, in whole cells
+        frame = int(t * 4)
         reacting = self.reaction and t < self.reaction[1]
-        if mood == "sleep":
-            bob = int(round(math.sin(t * 1.2)))           # slow breathing
-        elif mood == "alert" or (reacting and self.reaction[0] == "heart"):
-            bob = -int(abs(math.sin(t * 6)) * 3)          # hopping
+        if mood == "alert" or (reacting and self.reaction[0] == "heart"):
+            hop = -1 if frame % 2 else 0
         elif self.facing:
-            bob = -int(abs(math.sin(t * 8)) * 1.5)        # walking
+            hop = -1 if frame % 4 == 0 else 0
         else:
-            bob = int(round(math.sin(t * 2.5)))           # idle bob
-        ox, oy = self.x, self.top + bob * 2
+            hop = 0
+        ox = self.ax + int(round((self.x - self.ax) / S)) * S
+        oy = self.top + hop * S
+        ground = (self.top - self.ay) // S + GRID_H   # cell row just under the feet
 
-        # falling rain in the background
         if rain:
-            for i in range(14):
-                rx = self.ax + 6 + (i * 37) % (self.aw - 12)
-                ry = self.ay + 18 + int((t * 90 + i * 53) % (self.ah - 48))
-                d.line([rx, ry, rx - 2, ry + 6], fill=self.c.get("rain", (90, 169, 255)), width=1)
-
-        # shadow
-        sh_w = sprite_w - 20 + (bob * 3)
-        cx = ox + sprite_w // 2
-        gy = self.top + GRID_H * s + 4
-        d.ellipse([cx - sh_w // 2, gy - 3, cx + sh_w // 2, gy + 3], fill=self.c["shadow"])
+            self._rain(d, ox, ground, t)
+        # shadow on the ground, narrower while in the air
+        sw = 10 if hop == 0 else 8
+        self._px(d, ox, self.top, (GRID_W - sw) // 2, GRID_H, self.c["shadow"], sw, 1)
 
         body = self.c["pet_sleep"] if mood == "sleep" else (self.c["pet_hungry"] if mood == "hungry" else self.c["pet"])
         palette = {"X": self.c["pet_outline"], "o": body, "s": self.c["leaf"], "t": self.c["leaf_dark"],
                    "f": self.c["pet_outline"]}
-        # leaf droops when hungry or sad
         rows = list(BODY)
-        if mood in ("hungry", "sad"):
+        if mood in ("hungry", "sad"):  # leaf droops
             rows[0] = "................"
             rows[1] = "........tss....."
-        for gy_, row in enumerate(rows):
-            for gx_, ch in enumerate(row):
+        shuffle = self.facing and frame % 2
+        for gy, row in enumerate(rows):
+            for gx, ch in enumerate(row):
                 col = palette.get(ch)
                 if col:
-                    # feet shuffle while walking
-                    fx = 0
-                    if ch == "f" and self.facing and int(t * 8) % 2:
-                        fx = s // 2 * (1 if gx_ < 8 else -1)
-                    d.rectangle([ox + gx_ * s + fx, oy + gy_ * s, ox + gx_ * s + fx + s - 1, oy + gy_ * s + s - 1],
-                                fill=col)
+                    fx = (1 if gx < 8 else -1) if (ch == "f" and shuffle) else 0   # feet step inward
+                    self._px(d, ox, oy, gx + fx, gy, col)
 
         self._face(d, ox, oy, mood, t)
         if mask and mood != "sleep":
             self._mask(d, ox, oy)
-        self._extras(d, ox, oy, mood, t)
+        self._extras(d, ox, oy, mood, t, rain)
         if rain:
             self._umbrella(d, ox, oy)
+        self._reaction(d, ox, oy, t)
 
     # ------------------------------------------------------------------
     def _px(self, d, ox, oy, gx, gy, col, w=1, h=1):
-        s = self.scale
-        d.rectangle([ox + gx * s, oy + gy * s, ox + (gx + w) * s - 1, oy + (gy + h) * s - 1], fill=col)
+        d.rectangle([ox + gx * S, oy + gy * S, ox + (gx + w) * S - 1, oy + (gy + h) * S - 1], fill=col)
+
+    def _art(self, d, ox, oy, gx, gy, grid, colmap):
+        for ry, row in enumerate(grid):
+            for rx, ch in enumerate(row):
+                col = colmap.get(ch)
+                if col:
+                    self._px(d, ox, oy, gx + rx, gy + ry, col)
 
     def _face(self, d, ox, oy, mood, t):
         ink, white, cheek = self.c["pet_outline"], (255, 255, 255), self.c["cheek"]
-        look = self.facing  # eyes shift 1 px-cell toward walking direction
+        look = self.facing  # eyes shift 1 cell toward walking direction
         lx, rx, ey = 4 + look, 10 + look, 7
         blinking = t < self.blink_until
         if t > self.next_blink:
@@ -251,62 +278,63 @@ class PetAnimator:
         self._px(d, ox, oy, 2, 8, strap, 2, 1)
         self._px(d, ox, oy, 12, 8, strap, 2, 1)
 
+    def _rain(self, d, ox, ground, t):
+        """Falling drops, 1x2 cells, on the area grid. None over the pet (it is under its umbrella)."""
+        col = self.c.get("rain", (90, 169, 255))
+        frame = int(t * 4)
+        span = ground - 3
+        pet_col = (ox - self.ax) // S
+        for i in range(9):
+            cx = (i * 7 + 2) % self.cols
+            cy = 3 + (i * 5 + frame * 2) % span
+            if pet_col - 1 <= cx <= pet_col + GRID_W + 1:
+                continue
+            self._px(d, self.ax, self.ay, cx, cy, col, 1, 2)
+
     def _umbrella(self, d, ox, oy):
-        """Umbrella held over the head when it rains."""
-        s = self.scale
+        """Open umbrella over the head when it rains; folded beside the pet under a speech bubble."""
         col = self.c.get("umbrella", (230, 80, 90))
-        w = GRID_W * s + 24
-        x0, y0 = ox - 12, oy - 22
-        d.pieslice([x0, y0, x0 + w, y0 + 44], 180, 360, fill=col)
-        for k in range(4):  # scalloped edge
-            cx = x0 + w * (k + 0.5) / 4
-            d.ellipse([cx - w / 8, y0 + 16, cx + w / 8, y0 + 28], fill=self.c["bg"])
-        d.line([x0 + w / 2, y0, x0 + w / 2, y0 - 4], fill=col, width=2)
-        hx = ox + GRID_W * s + 3          # handle beside the body, held at the right side
-        d.line([x0 + w / 2, y0 + 20, hx, y0 + 26], fill=(200, 200, 200), width=2)
-        d.line([hx, y0 + 26, hx, oy + 10 * s], fill=(200, 200, 200), width=2)
-        d.arc([hx - 8, oy + 10 * s - 5, hx, oy + 10 * s + 5], 0, 180, fill=(200, 200, 200), width=2)
+        cmap = {"U": col, "L": tuple(min(255, v + 45) for v in col), "D": tuple(v * 3 // 4 for v in col),
+                "H": (150, 156, 168)}
+        if self.bubble:
+            self._art(d, ox, oy, GRID_W, 3, UMBRELLA_SHUT, cmap)
+            return
+        self._art(d, ox, oy, -1, -6, UMBRELLA, cmap)
+        self._px(d, ox, oy, GRID_W, 0, cmap["H"], 1, 12)   # shaft down the right side
+        self._px(d, ox, oy, GRID_W - 1, 12, cmap["H"])     # hook
 
-    def _icon(self, d, x, y, grid, colmap, s=3):
-        for gy, row in enumerate(grid):
-            for gx, ch in enumerate(row):
-                col = colmap.get(ch)
-                if col:
-                    d.rectangle([x + gx * s, y + gy * s, x + gx * s + s - 1, y + gy * s + s - 1], fill=col)
-
-    def _extras(self, d, ox, oy, mood, t):
-        s = self.scale
-        top_right = (ox + GRID_W * s - 6, oy + 6)
+    def _extras(self, d, ox, oy, mood, t, rain):
         reacting = self.reaction and t < self.reaction[1]
+        frame = int(t * 4)
         if mood == "sleep":
-            for i, (dx, dy, sz) in enumerate([(0, 0, 3), (12, -14, 4), (26, -30, 5)]):
-                phase = (t * 0.8 + i * 0.33) % 1.0
-                if phase < 0.75:
-                    x, y = top_right[0] + dx, top_right[1] + dy - int(phase * 8)
-                    self._z(d, x, y, sz, self.c["dim"])
-        elif mood == "alert":
-            if int(t * 3) % 2 == 0:
-                x, y = top_right[0] + 6, oy - 12
-                d.rectangle([x, y, x + 5, y + 18], fill=self.c["gold"])
-                d.rectangle([x, y + 23, x + 5, y + 28], fill=self.c["gold"])
+            # Zz up and to the right; to the left when the umbrella covers the space above
+            step = (frame // 3) % 3
+            small, big = ((-3, 2), (-7, -1)) if rain else ((GRID_W - 3, 0), (GRID_W, -4))
+            ink = {"X": self.c["dim"]}
+            if step in (0, 1):
+                self._art(d, ox, oy, small[0], small[1], Z_SMALL, ink)
+            if step in (1, 2):
+                self._art(d, ox, oy, big[0], big[1] - (step == 2), Z_BIG, ink)
+        elif mood == "alert" and frame % 2 == 0:
+            self._art(d, ox, oy, GRID_W + (1 if rain else 0), -4 if not rain else 1, BANG, {"X": self.c["gold"]})
         elif mood == "hungry" and not reacting:
-            bx, by = top_right[0] - 2, oy - 6
-            d.ellipse([bx - 4, by + 26, bx + 2, by + 32], outline=self.c["dim"], fill=self.c["bg"])
-            d.rounded_rectangle([bx, by - 4, bx + 32, by + 24], radius=6, outline=self.c["dim"], fill=self.c["bg"])
-            self._icon(d, bx + 6, by + 1, BOWL, {"X": self.c["dim"], "W": (240, 240, 230), "B": self.c["bowl"]}, s=3)
-        if reacting:
-            kind, until = self.reaction
-            left = until - t
-            rise = int((2.0 - left) * 14)
-            if kind == "heart":
-                for i, dx in enumerate((-18, 10, 34)):
-                    self._icon(d, ox + 20 + dx, oy - 4 - rise - i * 6, HEART, {"X": self.c["heart"]}, s=3)
-            elif kind == "food":
-                self._icon(d, ox + GRID_W * s // 2 - 10, oy + GRID_H * s - 30, BOWL,
-                           {"X": self.c["dim"], "W": (240, 240, 230), "B": self.c["bowl"]}, s=3)
+            # thought bubble with a bowl, on whichever side has room
+            right = ox + (GRID_W + 8) * S <= self.ax + self.aw
+            bx = GRID_W + 1 if right else -8
+            by = 2 if rain else -4
+            self._art(d, ox, oy, bx, by, THOUGHT, {"D": self.c["dim"]})
+            self._px(d, ox, oy, bx + 1, by + 1, self.c["bg"], 5, 4)
+            self._art(d, ox, oy, bx + 1, by + 1, BOWL,
+                      {"X": self.c["dim"], "W": (240, 240, 230), "B": self.c["bowl"]})
+            self._px(d, ox, oy, GRID_W if right else -1, by + 6, self.c["dim"])
 
-    def _z(self, d, x, y, sz, col):
-        w = sz * 2
-        d.line([x, y, x + w, y], fill=col, width=2)
-        d.line([x + w, y, x, y + w], fill=col, width=2)
-        d.line([x, y + w, x + w, y + w], fill=col, width=2)
+    def _reaction(self, d, ox, oy, t):
+        if not (self.reaction and t < self.reaction[1]):
+            return
+        kind, until = self.reaction
+        rise = int((2.0 - (until - t)) * 2)     # cells risen so far
+        if kind == "heart":   # float up beside the head (above it is the name label)
+            self._art(d, ox, oy, -4, 4 - rise, HEART, {"X": self.c["heart"]})
+            self._art(d, ox, oy, GRID_W + 1, 5 - rise, HEART, {"X": self.c["heart"]})
+        elif kind == "food":
+            self._art(d, ox, oy, 5, 12, BOWL_FED, {"X": self.c["dim"], "W": (240, 240, 230), "B": self.c["bowl"]})
