@@ -7,6 +7,22 @@ Develop: `python3 -m unittest discover -s tests -t .` · Release: `bash scripts/
 
 Prayer times, a system status monitor and a small pet on the Adafruit PiTFT 2.8" (320x240).
 
+## What you need
+This app needs a Raspberry Pi with a small touchscreen attached to its GPIO pins. It does not run on a normal computer screen, except as a preview window for development.
+
+The setup it is built and tested on:
+
+| Part | Used here | Notes |
+|---|---|---|
+| Board | Raspberry Pi 3 Model B+ (1 GB) | Any Pi with the 40-pin header and 64-bit Raspberry Pi OS should work; only the 3B+ is tested |
+| Screen | [Adafruit PiTFT Plus 2.8" resistive touch](https://learn.adafruit.com/adafruit-pitft-28-inch-resistive-touchscreen-display-raspberry-pi) (320x240, ILI9341 display, STMPE610 touch) | Plugs onto the GPIO header. Other 320x240 SPI screens may work if they appear as a framebuffer (`/dev/fb0` or `/dev/fb1`) |
+| Buttons | The 4 side buttons on that PiTFT (GPIO 17, 22, 23, 27) | Optional. Without them, use touch |
+| Power | 5 V / 3 A USB charger and a **short** micro-USB cable | A long or thin cable drops the voltage and the Pi slows down or crashes. Check with `vcgencmd get_throttled` (`0x0` is good) |
+| Storage | microSD card, 16 GB or more | |
+| OS | Raspberry Pi OS Bookworm 64-bit, console boot (no desktop) | Needs Wi-Fi or Ethernet for weather and the Telegram bot; prayer times work offline |
+
+**Set up the screen first.** Run Adafruit's PiTFT installer from the guide linked above, and choose the 2.8" resistive screen with rotation 270. `install.sh` does not set up the screen driver. When the screen works, the boot text appears on it.
+
 ## Install
     bash install.sh
 

@@ -248,6 +248,7 @@ buttons.py ▶│  btns ─┼─▶ actions ─▶ pet.py │  app.Schedule (st
 | 1.6 | 10-31 | Fixed ERR-trap leak (bogus "Disabled …" lines), false "update running", `--info` explanations, versioned tarball names, `--version` |
 | 1.7 | 11-01 | `/feed` `/pat` aware of sleep; `/ask` model fallback; default model `gemini-3.5-flash-lite` |
 | repo | 11-08 | Project moved to a repository with tests, packaging script and docs (no app changes) |
+| repo | 11-08 | README: "What you need" hardware section (Pi 3B+, PiTFT 2.8" resistive, power, OS; screen driver set up first with Adafruit's installer); scripts marked executable in git (no app changes) |
 
 ## 10. Security & privacy
 
