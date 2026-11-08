@@ -1,0 +1,59 @@
+#!/bin/bash
+# Add a Wi-Fi network and switch to it.
+#   wifi-join --list                     networks seen nearby
+#   sudo wifi-join "NETWORK" "PASSWORD"  save and connect (leave out PASSWORD for an open network)
+#   sudo wifi-join --forget "NETWORK"    remove a saved network
+CONF=/etc/wifi-fallback.conf
+# shellcheck disable=SC1090
+[ -f "$CONF" ] && . "$CONF"
+AP_CON=${AP_CON:-setup-hotspot}
+RUN=/run/wifi-fallback
+
+if [ -z "$1" ] || [ "$1" = "--list" ]; then
+  echo "Networks nearby (name : signal % : security):"
+  if [ -s "$RUN/scan.txt" ] && nmcli -t -f NAME connection show --active | grep -qx "$AP_CON"; then
+    sed 's/:/  :  /g' "$RUN/scan.txt"   # can't scan while the hotspot is on; show the list from before it started
+  else
+    nmcli -f SSID,SIGNAL,SECURITY device wifi list --rescan yes
+  fi
+  echo
+  echo "Saved networks:"
+  nmcli -t -f NAME,TYPE connection show | awk -F: -v ap="$AP_CON" '$2=="802-11-wireless" && $1!=ap {print "  " $1}'
+  echo
+  echo 'To add one:  sudo wifi-join "NETWORK" "PASSWORD"'
+  exit 0
+fi
+
+if [ "$(id -u)" != 0 ]; then echo "Run with sudo:  sudo wifi-join \"$1\" \"PASSWORD\""; exit 1; fi
+
+if [ "$1" = "--forget" ]; then
+  nmcli connection delete id "$2" && echo "Forgot \"$2\"."
+  exit $?
+fi
+
+SSID=$1
+PASS=$2
+nmcli connection delete id "$SSID" >/dev/null 2>&1
+if [ -n "$PASS" ]; then
+  nmcli connection add type wifi ifname wlan0 con-name "$SSID" ssid "$SSID" \
+    wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$PASS" connection.autoconnect yes >/dev/null || exit 1
+else
+  nmcli connection add type wifi ifname wlan0 con-name "$SSID" ssid "$SSID" connection.autoconnect yes >/dev/null || exit 1
+fi
+echo "Saved \"$SSID\"."
+
+if nmcli -t -f NAME connection show --active | grep -qx "$AP_CON"; then
+  echo
+  echo "Leaving the setup hotspot in 3 seconds to join \"$SSID\"."
+  echo "This SSH session will disconnect. The Pi's screen will show the new IP address."
+  echo "If it can't join within about a minute, the setup hotspot comes back."
+  systemd-run --quiet --collect --unit="wifi-join-$$" /bin/sh -c "sleep 3; nmcli connection down id '$AP_CON'"
+else
+  echo "Connecting..."
+  if nmcli -w 45 connection up id "$SSID" >/dev/null; then
+    echo "Connected. IP address: $(hostname -I | awk '{print $1}')"
+  else
+    echo "Could not connect. Check the password, or run:  wifi-join --list"
+    exit 1
+  fi
+fi

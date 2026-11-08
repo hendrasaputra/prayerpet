@@ -1,0 +1,104 @@
+#!/bin/bash
+# wifi-fallback: if the Pi finds no known network after boot, start a setup hotspot.
+# Join the hotspot, SSH in, then run:  sudo wifi-join "NETWORK" "PASSWORD"
+# Runs as a root systemd service (wifi-fallback.service).
+
+CONF=/etc/wifi-fallback.conf
+# shellcheck disable=SC1090
+[ -f "$CONF" ] && . "$CONF"
+AP_CON=${AP_CON:-setup-hotspot}
+AP_SSID=${AP_SSID:-$(hostname)-setup}
+AP_PASS=${AP_PASS:-}
+AP_IP=${AP_IP:-10.42.0.1}
+GRACE=${GRACE:-90}          # seconds to wait for a normal network after boot
+RETRY_MIN=${RETRY_MIN:-10}  # while nobody uses the hotspot, look for known networks again this often
+IFACE=${IFACE:-wlan0}
+RUN=/run/wifi-fallback
+
+mkdir -p "$RUN"
+chmod 755 "$RUN"
+
+log() { echo "wifi-fallback: $*"; }
+
+write_state() {  # state=checking|ap|switching|online|failed
+  {
+    echo "state=$1"
+    echo "ssid=$AP_SSID"
+    echo "pass=$AP_PASS"
+    echo "ip=$AP_IP"
+    echo "target=${2:-}"
+  } >"$RUN/state.tmp"
+  chmod 644 "$RUN/state.tmp"
+  mv "$RUN/state.tmp" "$RUN/state"
+}
+
+online() {  # true if any real interface is connected (not our own hotspot)
+  nmcli -t -f DEVICE,STATE,CONNECTION device status 2>/dev/null |
+    awk -F: -v ap="$AP_CON" '$1!="lo" && $2=="connected" && $3!=ap {f=1} END {exit !f}'
+}
+
+ap_active() { nmcli -t -f NAME connection show --active 2>/dev/null | grep -qx "$AP_CON"; }
+
+scan() {  # save nearby networks (name:signal:security), strongest first, for "wifi-join --list"
+  nmcli -t -f SSID,SIGNAL,SECURITY device wifi list --rescan yes 2>/dev/null |
+    grep -v '^:' | sort -t: -k2 -nr | awk -F: '!seen[$1]++' >"$RUN/scan.txt.tmp"
+  mv "$RUN/scan.txt.tmp" "$RUN/scan.txt"
+  chmod 644 "$RUN/scan.txt"
+}
+
+try_known() {  # try every saved Wi-Fi profile whose network is visible now
+  scan
+  local name ssid
+  while IFS= read -r name; do
+    [ "$name" = "$AP_CON" ] && continue
+    ssid=$(nmcli -g 802-11-wireless.ssid connection show "$name" 2>/dev/null)
+    [ -z "$ssid" ] && continue
+    if cut -d: -f1 "$RUN/scan.txt" | grep -qxF "$ssid"; then
+      log "trying \"$name\""
+      write_state switching "$ssid"
+      nmcli -w 40 connection up id "$name" >/dev/null 2>&1 && online && return 0
+    fi
+  done < <(nmcli -t -f NAME,TYPE connection show | awk -F: '$2=="802-11-wireless" {print $1}')
+  return 1
+}
+
+if [ -z "$AP_PASS" ]; then
+  log "no AP_PASS in $CONF; refusing to start an open hotspot"
+  exit 1
+fi
+
+write_state checking
+log "waiting up to ${GRACE}s for a known network"
+for ((i = 0; i < GRACE; i += 5)); do
+  if online; then write_state online; log "online"; exit 0; fi
+  sleep 5
+done
+
+while true; do
+  if online; then write_state online; log "online"; exit 0; fi
+  if ! ap_active; then
+    scan
+    log "no known network; starting hotspot \"$AP_SSID\""
+    if nmcli connection up id "$AP_CON" >/dev/null 2>&1; then
+      write_state ap
+    else
+      log "could not start hotspot"; write_state failed; sleep 60; continue
+    fi
+  fi
+  # stay in hotspot mode; leave it when wifi-join switches away, or every RETRY_MIN minutes if nobody is connected
+  waited=0
+  while ap_active; do
+    sleep 15; waited=$((waited + 15))
+    if [ "$waited" -ge $((RETRY_MIN * 60)) ]; then
+      if [ -z "$(iw dev "$IFACE" station dump 2>/dev/null)" ]; then
+        log "nobody on the hotspot; checking for known networks again"
+        nmcli connection down id "$AP_CON" >/dev/null 2>&1
+        break
+      fi
+      waited=0
+    fi
+  done
+  sleep 3
+  if try_known; then write_state online; log "online"; exit 0; fi
+  log "no known network reachable"
+done

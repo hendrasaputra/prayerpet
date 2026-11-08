@@ -1,0 +1,94 @@
+# ---------------------------------------------------------------
+#  Prayer Pet settings
+#  After editing, apply with:   sudo systemctl restart prayerpet
+#  Check the times without the screen:   prayerpet --times
+# ---------------------------------------------------------------
+
+[location]
+name      = "Jakarta"
+latitude  = -6.2088          # south is negative
+longitude = 106.8456         # east is positive
+timezone  = "Asia/Jakarta"   # e.g. Asia/Yangon, Asia/Singapore
+elevation = 0                # metres above sea level; keep 0 for Kemenag
+
+[prayer]
+# Calculation method:
+#   kemenag  Indonesia (Fajr 20°, Isha 18°, Kemenag safety margins) - matches the official Jakarta schedule
+#   jakim    Malaysia          muis  Singapore
+#   karachi  Fajr 18°, Isha 18° (common in Pakistan, India, Myanmar)
+#   mwl      Muslim World League        isna   North America
+#   egypt    Egyptian authority         makkah Umm al-Qura
+#   turkey   Diyanet
+method = "kemenag"
+asr    = "shafi"             # "shafi" (shadow = 1x) or "hanafi" (shadow = 2x)
+language = "id"              # "id" = Subuh, Dzuhur, Ashar...   "en" = Fajr, Dhuhr, Asr...
+
+# Which times to list on screen (max 7). Options: imsak fajr sunrise dhuha dhuhr asr maghrib isha
+show = ["imsak", "fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha"]
+
+remind_minutes_before   = 10   # pet gets excited this many minutes before each prayer
+highlight_minutes_after = 15   # how long "It's prayer time" stays on screen
+
+# Fine-tune in minutes to match your local mosque. Added on top of the method.
+# Example: fajr = 1  makes Subuh one minute later.
+[prayer.offsets]
+# fajr    = 0
+# dhuhr   = 0
+# asr     = 0
+# maghrib = 0
+# isha    = 0
+
+[pet]
+name = "Nomi"
+sleep_after_isha_minutes = 60   # pet falls asleep this long after Isya
+wake_before_fajr_minutes = 20   # and wakes up this long before Subuh
+state_file = "~/.prayerpet-state.json"   # hunger/happiness are saved here
+
+[screen]
+fps = 4                     # frames per second. 2-6 is plenty for this screen
+framebuffer = "auto"        # or e.g. "/dev/fb1"
+rotate = 0                  # extra rotation if the picture is upside down: 0, 90, 180, 270
+night_dim = true            # darken the screen while the pet sleeps (a tap brightens it for 30 s)
+clock_24h = true
+auto_switch_seconds = 0     # cycle pet -> weather -> status every N seconds; 0 = only by tap/button
+start_page = "home"         # "home", "weather" or "status"
+
+[buttons]
+# The four buttons on the PiTFT edge. Choose an action for each:
+#   page   = next page (pet -> weather -> status)
+#   feed   = feed the pet          pat = pat the pet (hearts)
+#   screen = darken the screen (press any button to brighten again)
+#   none   = do nothing
+enabled = true
+gpio17 = "page"
+gpio22 = "feed"
+gpio23 = "pat"
+gpio27 = "screen"
+# The pins in the order they sit on the board, so the on-screen labels line up with them.
+# Find out with:  prayerpet --input-test   (press the buttons left to right / top to bottom)
+order = [17, 22, 23, 27]
+hint_edge = "bottom"         # where the buttons are on screen: bottom, top, left, right, or none
+hint_seconds = 3             # labels show for this long after a press
+# Hold this button to shut the Pi down safely (protects the SD card). 0 = off.
+shutdown_pin = 27
+shutdown_hold_seconds = 5
+
+[weather]
+# Weather and air quality from Open-Meteo (free, no account). Uses the [location] above.
+enabled = true
+refresh_minutes = 15
+
+[network]
+wifi_interface = "wlan0"
+
+[touch]
+enabled = true
+device  = "auto"            # or e.g. "/dev/input/event0"
+# Calibration. Run  prayerpet --touch-test  and tap the four corners to tune these.
+swap_xy  = true
+invert_x = false
+invert_y = true
+raw_x_min = 240
+raw_x_max = 3850
+raw_y_min = 280
+raw_y_max = 3740

@@ -1,0 +1,20 @@
+# build output
+dist/
+*.tar.gz
+__pycache__/
+*.pyc
+
+# never commit secrets or personal state (these normally live only on the Pi)
+.prayerpet-telegram.toml
+*.secret.toml
+.prayerpet-state.json
+.prayerpet-weather.json
+.prayerpet-bot-usage.json
+*-backup-*.tar.gz
+*.img
+*.img.gz
+
+# local editor / OS files
+.DS_Store
+.vscode/
+.idea/
